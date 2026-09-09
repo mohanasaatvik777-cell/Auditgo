@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auditgo — AI-Powered SEO Audit Platform</title>
+  <meta name="description" content="Auditgo — AI-powered SEO audit platform. Audit on-page SEO, check NAP consistency, and get grounded website Q&A answers.">
+  <meta name="theme-color" content="#1d4ed8">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%231d4ed8'/><text x='50' y='72' text-anchor='middle' font-size='60' font-family='serif' fill='white'>A</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-inner">
+
+        <!-- Brand -->
+        <div class="brand">
+          <div class="brand-mark">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/>
+              <path d="m21 21-4.35-4.35"/>
+            </svg>
+          </div>
+          <span class="brand-name">Auditgo</span>
+          <button class="sidebar-toggle" id="sidebarToggle" aria-label="Collapse sidebar">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M11 19l-7-7 7-7"/><path d="M18 19l-7-7 7-7"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Nav -->
+        <nav class="sidebar-nav">
+
+          <!-- Audit -->
+          <a href="#" class="nav-item active" data-view="audit" id="nav-audit">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 11l3 3L22 4"/>
+              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+            </svg>
+            <span class="nav-label">New Audit</span>
+          </a>
+
+          <!-- Reports -->
+          <a href="#" class="nav-item" data-view="reports" id="nav-reports">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14,2 14,8 20,8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <polyline points="10,9 9,9 8,9"/>
+            </svg>
+            <span class="nav-label">Reports</span>
+            <span class="nav-badge" id="reportsBadge" style="display:none;">0</span>
+          </a>
+
+          <!-- History -->
+          <a href="#" class="nav-item" data-view="history" id="nav-history">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="12 8 12 12 14 14"/>
+              <path d="M3.05 11a9 9 0 1 1 .5 4"/>
+              <polyline points="3 16 3 11 8 11"/>
+            </svg>
+            <span class="nav-label">History</span>
+          </a>
+
+          <!-- Settings -->
+          <a href="#" class="nav-item" data-view="settings" id="nav-settings" id="settingsNavItem">
+            <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+            <span class="nav-label">Settings</span>
+          </a>
+
+        </nav>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main-wrapper">
+
+      <!-- Top Bar -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <span class="topbar-title" id="topbarTitle">New Audit</span>
+        </div>
+      <div class="topbar-right">
+          <button class="btn-primary" id="runAuditTopBtn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+            Run Audit
+          </button>
+        </div>
+      </header>
+
+      <!-- ============================================================ -->
+      <!-- VIEW: Audit (New Audit) -->
+      <!-- ============================================================ -->
+      <div class="view active" id="view-audit">
+        <div class="hero-wrapper">
+
+          <!-- Hero -->
+          <div class="hero-content">
+            <div class="hero-logo-mark">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/>
+                <path d="m21 21-4.35-4.35"/>
+              </svg>
+            </div>
+            <h1 class="hero-heading">What should Auditgo do?</h1>
+            <p class="hero-sub">Enter any website URL and optionally a question. Auditgo will crawl the site, audit on-page SEO, check NAP consistency, and answer your question with a verified source excerpt.</p>
+          </div>
+
+          <!-- Input Form -->
+          <div class="audit-form-card">
+            <div class="form-field">
+              <label class="form-label" for="urlInput">Target Website URL</label>
+              <div class="input-row">
+                <div class="input-icon">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="2" y1="12" x2="22" y2="12"/>
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                  </svg>
+                </div>
+                <input type="url" id="urlInput" class="text-input" placeholder="https://example.com" autocomplete="off" spellcheck="false">
+              </div>
+            </div>
+            <div class="form-field">
+              <label class="form-label" for="queryInput">
+                Question for Q&A
+                <span class="form-label-optional">Optional</span>
+              </label>
+              <div class="input-row">
+                <div class="input-icon">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>
+                </div>
+                <input type="text" id="queryInput" class="text-input" placeholder="e.g. What are your business hours?" autocomplete="off">
+              </div>
+            </div>
+            <button class="btn-run-audit" id="runAuditBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
+              Run Full Audit
+            </button>
+          </div>
+
+          <!-- Preset Cards -->
+          <div class="presets-section">
+            <div class="presets-label">Quick presets</div>
+            <div class="presets-grid">
+
+              <div class="preset-card" data-url="http://127.0.0.1:8899/index.html" data-query="What are your support hours?">
+                <div class="preset-card-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round">
+                    <path d="M9 11l3 3L22 4"/>
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                  </svg>
+                </div>
+                <div class="preset-card-body">
+                  <div class="preset-card-title">Full SEO + Q&A Audit</div>
+                  <div class="preset-card-desc">Crawl site, audit on-page SEO, check NAP, and answer a grounded question with verified excerpt.</div>
+                </div>
+              </div>
+
+              <div class="preset-card" data-url="http://127.0.0.1:8899/index.html" data-query="">
+                <div class="preset-card-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14,2 14,8 20,8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                  </svg>
+                </div>
+                <div class="preset-card-body">
+                  <div class="preset-card-title">On-Page SEO Only</div>
+                  <div class="preset-card-desc">Detect missing titles, meta descriptions, broken links, alt tags, canonical issues, and duplicate content.</div>
+                </div>
+              </div>
+
+              <div class="preset-card" data-url="http://127.0.0.1:8899/index.html" data-query="What is your phone number?">
+                <div class="preset-card-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.77 1h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 8.91a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                  </svg>
+                </div>
+                <div class="preset-card-body">
+                  <div class="preset-card-title">NAP Consistency Check</div>
+                  <div class="preset-card-desc">Extract and normalize Name, Address, and Phone across pages and JSON-LD schema with E.164 phone format.</div>
+                </div>
+              </div>
+
+              <div class="preset-card" data-url="http://127.0.0.1:8899/index.html" data-query="What are your business hours?">
+                <div class="preset-card-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="m21 21-4.35-4.35"/>
+                  </svg>
+                </div>
+                <div class="preset-card-body">
+                  <div class="preset-card-title">Grounded Q&A</div>
+                  <div class="preset-card-desc">Ask any question and get a 100% verbatim answer verified against the site's raw HTML character offsets.</div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- VIEW: Reports -->
+      <!-- ============================================================ -->
+      <div class="view" id="view-reports">
+        <div class="view-header">
+          <h2 class="view-title">Audit Reports</h2>
+          <p class="view-subtitle">Results from your most recent audit run. Run a new audit to update these reports.</p>
+        </div>
+
+        <div class="empty-state" id="reportsEmpty">
+          <div class="empty-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14,2 14,8 20,8"/>
+            </svg>
+          </div>
+          <div class="empty-title">No reports yet</div>
+          <div class="empty-desc">Run an audit to generate your first report.</div>
+          <button class="btn-secondary-action" id="goToAuditBtn">Start a new audit</button>
+        </div>
+
+        <div id="reportsContent" style="display:none;">
+          <!-- Report Tabs -->
+          <div class="report-tabs">
+            <button class="report-tab active" data-tab="r-seo">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M9 11l3 3L22 4"/>
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+              </svg>
+              On-Page SEO
+              <span class="tab-count" id="seoCount">0</span>
+            </button>
+            <button class="report-tab" data-tab="r-nap">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07"/>
+                <path d="M2 2l20 20"/>
+              </svg>
+              NAP Consistency
+            </button>
+            <button class="report-tab" data-tab="r-qa">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <circle cx="11" cy="11" r="8"/>
+                <path d="m21 21-4.35-4.35"/>
+              </svg>
+              Grounded Q&A
+            </button>
+            <button class="report-tab" data-tab="r-raw">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <polyline points="16 18 22 12 16 6"/>
+                <polyline points="8 6 2 12 8 18"/>
+              </svg>
+              Raw JSON
+            </button>
+          </div>
+
+          <!-- Download Bar -->
+          <div class="download-row">
+            <button class="download-btn" id="dlAudit">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              audit.json
+            </button>
+            <button class="download-btn" id="dlNap">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              nap_report.json
+            </button>
+            <button class="download-btn" id="dlAnswer">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              answer.json
+            </button>
+          </div>
+
+          <!-- Tab Panels -->
+          <div class="tab-panel active" id="r-seo">
+            <table class="data-table" id="seoTable">
+              <thead>
+                <tr>
+                  <th>Metric</th>
+                  <th>Severity</th>
+                  <th>Page(s)</th>
+                  <th>Evidence</th>
+                  <th>Suggested Fix</th>
+                </tr>
+              </thead>
+              <tbody id="seoTableBody"></tbody>
+            </table>
+          </div>
+
+          <div class="tab-panel" id="r-nap">
+            <table class="data-table" id="napTable">
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Verdict</th>
+                  <th>Confidence</th>
+                  <th>Values Found</th>
+                  <th>Normalized (E.164)</th>
+                </tr>
+              </thead>
+              <tbody id="napTableBody"></tbody>
+            </table>
+          </div>
+
+          <div class="tab-panel" id="r-qa">
+            <div class="chat-container" id="chatContainer">
+
+              <!-- No-key banner -->
+              <div class="chat-key-banner" id="chatKeyBanner" style="display:none">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                No Groq API key set — answers will show raw excerpts only.
+                <button class="chat-key-banner-btn" onclick="switchView('settings')">Add Key →</button>
+              </div>
+
+              <!-- Messages -->
+              <div class="chat-messages" id="chatMessages">
+                <div class="chat-empty" id="chatEmpty">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                  <p>Run an audit with a question to start the conversation.</p>
+                </div>
+              </div>
+
+              <!-- Input bar -->
+              <div class="chat-input-bar">
+                <div class="chat-input-wrap">
+                  <input
+                    type="text"
+                    id="chatInput"
+                    class="chat-input"
+                    placeholder="Ask anything about this website… (Enter to send)"
+                    autocomplete="off"
+                  >
+                  <button class="chat-send-btn" id="chatSendBtn" aria-label="Send">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  </button>
+                </div>
+                <div class="chat-meta" id="chatMeta">
+                  <span id="chatSiteLabel"></span>
+                  <button class="chat-clear-btn" id="chatClearBtn">Clear conversation</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="tab-panel" id="r-raw">
+            <pre class="code-block" id="rawJson"></pre>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- VIEW: History -->
+      <!-- ============================================================ -->
+      <div class="view" id="view-history">
+        <div class="view-header">
+          <h2 class="view-title">Audit History</h2>
+          <p class="view-subtitle">Every audit you run is saved locally in your browser.</p>
+          <button class="btn-danger-sm" id="clearHistoryBtn">Clear all</button>
+        </div>
+        <div class="empty-state" id="historyEmpty">
+          <div class="empty-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round">
+              <polyline points="12 8 12 12 14 14"/>
+              <path d="M3.05 11a9 9 0 1 1 .5 4"/>
+            </svg>
+          </div>
+          <div class="empty-title">No history yet</div>
+          <div class="empty-desc">Your audit runs will appear here.</div>
+        </div>
+        <div class="history-list" id="historyList"></div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- VIEW: Settings -->
+      <!-- ============================================================ -->
+      <div class="view" id="view-settings">
+        <div class="view-header">
+          <h2 class="view-title">Settings</h2>
+          <p class="view-subtitle">Configure your Auditgo preferences and API keys.</p>
+        </div>
+
+        <div class="settings-grid">
+
+          <!-- Groq API Key -->
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <div class="settings-card-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+                </svg>
+              </div>
+              <div>
+                <div class="settings-card-title">Groq API Key</div>
+                <div class="settings-card-desc">Enable LLM-powered suggested fix refinements. Free tier available at console.groq.com.</div>
+              </div>
+            </div>
+            <div class="settings-field-group">
+              <div class="settings-input-row">
+                <input type="password" id="groqKeyInput" class="settings-input" placeholder="gsk_...">
+                <button class="btn-reveal" id="toggleKeyVis" aria-label="Show key">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" id="eyeIcon">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                </button>
+              </div>
+              <div class="settings-actions">
+                <button class="btn-save" id="saveGroqKey">Save Key</button>
+                <button class="btn-clear" id="clearGroqKey">Remove</button>
+              </div>
+              <div class="settings-hint">
+                Key is stored in your browser's localStorage and never sent to any third party.
+                <a href="https://console.groq.com" target="_blank" rel="noopener" class="settings-link">Get a free key</a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Crawl Settings -->
+          <div class="settings-card">
+            <div class="settings-card-header">
+              <div class="settings-card-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <polyline points="12 6 12 12 16 14"/>
+                </svg>
+              </div>
+              <div>
+                <div class="settings-card-title">Crawl Limits</div>
+                <div class="settings-card-desc">Control how deep and wide Auditgo crawls your target site.</div>
+              </div>
+            </div>
+            <div class="settings-field-group">
+              <div class="settings-row-two">
+                <div class="settings-item">
+                  <label class="settings-label">Max Pages</label>
+                  <input type="number" id="maxPagesInput" class="settings-input-sm" value="150" min="10" max="500">
+                </div>
+                <div class="settings-item">
+                  <label class="settings-label">Max Depth</label>
+                  <input type="number" id="maxDepthInput" class="settings-input-sm" value="4" min="1" max="10">
+                </div>
+              </div>
+              <button class="btn-save" id="saveCrawlSettings">Save Settings</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Execution Overlay -->
+  <div class="overlay" id="overlay">
+    <div class="overlay-card">
+      <div class="overlay-header">
+        <div class="overlay-title">Auditgo is running</div>
+        <div class="overlay-url" id="overlayUrl"></div>
+      </div>
+      <div class="overlay-steps">
+        <div class="step" id="ostep1">
+          <div class="step-dot running"></div>
+          <div class="step-text">Crawling domain &amp; parsing HTML</div>
+        </div>
+        <div class="step" id="ostep2">
+          <div class="step-dot"></div>
+          <div class="step-text">Auditing on-page SEO signals</div>
+        </div>
+        <div class="step" id="ostep3">
+          <div class="step-dot"></div>
+          <div class="step-text">Extracting NAP &amp; normalizing E.164</div>
+        </div>
+        <div class="step" id="ostep4">
+          <div class="step-dot"></div>
+          <div class="step-text">BM25 indexing &amp; verifying Q&A excerpt</div>
+        </div>
+      </div>
+      <div class="overlay-hint">This may take 10–60 seconds depending on site size.</div>
+      <div class="overlay-error" id="overlayError" style="display:none;"></div>
+      <button class="overlay-cancel" id="overlayCancel">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
