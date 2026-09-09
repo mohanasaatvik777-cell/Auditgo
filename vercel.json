@@ -1,46 +1,12 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "api/index.py",
-      "use": "@vercel/python",
-      "config": {
-        "maxLambdaSize": "50mb",
-        "runtime": "python3.11"
-      }
-    },
-    {
-      "src": "web/styles.css",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "web/app.js",
-      "use": "@vercel/static"
-    },
-    {
-      "src": "web/index.html",
-      "use": "@vercel/static"
+  "functions": {
+    "api/index.py": {
+      "runtime": "python3.11",
+      "maxDuration": 60
     }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/index.py"
-    },
-    {
-      "src": "/styles.css",
-      "dest": "/web/styles.css"
-    },
-    {
-      "src": "/app.js",
-      "dest": "/web/app.js"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/web/index.html"
-    }
-  ],
-  "env": {
-    "PYTHONPATH": "."
-  }
+  },
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/api/index.py" }
+  ]
 }
