@@ -713,3 +713,65 @@ function showToast(msg, type = '') {
   }
   updateChatKeyBanner();
 })();
+
+/* ═══════════════════════════════════════════════════════════
+   MOBILE RESPONSIVE — hamburger, overlay, bottom nav
+══════════════════════════════════════════════════════════ */
+(function initMobile() {
+  const sidebar       = document.getElementById('sidebar');
+  const overlay       = document.getElementById('sidebarOverlay');
+  const menuBtn       = document.getElementById('mobileMenuBtn');
+  const mobileNavBtns = document.querySelectorAll('.mobile-nav-btn[data-view]');
+  const mobileBadge   = document.getElementById('mobileBadge');
+
+  // Show hamburger only on mobile
+  function checkMobile() {
+    const isMobile = window.innerWidth <= 768;
+    if (menuBtn) menuBtn.style.display = isMobile ? 'flex' : 'none';
+  }
+  checkMobile();
+  window.addEventListener('resize', checkMobile);
+
+  // Open sidebar drawer
+  menuBtn && menuBtn.addEventListener('click', () => {
+    sidebar.classList.add('mobile-open');
+    overlay.classList.add('visible');
+    document.body.style.overflow = 'hidden';
+  });
+
+  // Close on overlay click
+  overlay && overlay.addEventListener('click', closeSidebar);
+
+  function closeSidebar() {
+    sidebar.classList.remove('mobile-open');
+    overlay.classList.remove('visible');
+    document.body.style.overflow = '';
+  }
+
+  // Mobile bottom nav switching
+  mobileNavBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      mobileNavBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      switchView(btn.dataset.view);
+      closeSidebar();
+    });
+  });
+
+  // Keep mobile nav in sync with desktop nav clicks
+  const origSwitch = window.switchView;
+  window.switchView = function(viewId) {
+    origSwitch && origSwitch(viewId);
+    mobileNavBtns.forEach(b => b.classList.toggle('active', b.dataset.view === viewId));
+  };
+
+  // Mirror reportsBadge into mobileBadge
+  const reportsBadge = document.getElementById('reportsBadge');
+  if (reportsBadge && mobileBadge) {
+    const obs = new MutationObserver(() => {
+      mobileBadge.textContent   = reportsBadge.textContent;
+      mobileBadge.style.display = reportsBadge.style.display;
+    });
+    obs.observe(reportsBadge, { childList: true, attributes: true, attributeFilter: ['style'] });
+  }
+})();
