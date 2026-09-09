@@ -15,6 +15,10 @@ def run_agent(
     output_dir: str = "outputs",
     conversation_history: Optional[List[Dict]] = None,
 ) -> dict:
+    # On Vercel (and other serverless platforms) only /tmp is writable
+    if os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"):
+        output_dir = "/tmp/outputs"
+
     os.makedirs(output_dir, exist_ok=True)
 
     print(f"[1/4] Crawling domain starting at: {url}")
