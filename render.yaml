@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: auditgo
+    runtime: python
+    region: oregon          # free-tier region; change to singapore/frankfurt if preferred
+    plan: free
+
+    # ── Build ──────────────────────────────────────────────
+    buildCommand: pip install -r requirements.txt
+
+    # ── Start ──────────────────────────────────────────────
+    startCommand: python run_app.py
+
+    # ── Health check ───────────────────────────────────────
+    healthCheckPath: /api/health
+
+    # ── Environment variables ──────────────────────────────
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false          # set this manually in the Render dashboard (never commit the value)
+      - key: PYTHON_VERSION
+        value: "3.11"
