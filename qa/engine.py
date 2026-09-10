@@ -108,10 +108,11 @@ class GroundedQAEngine:
 
         # Intent detection
         is_seo_query = any(w in q_lower for w in [
-            "seo", "issue", "finding", "audit", "title", "meta", "description",
-            "heading", "h1", "h2", "link", "broken", "canonical", "noindex",
-            "robot", "sitemap", "alt", "image", "severity", "fix", "score",
-            "rank", "crawl", "duplicate", "schema", "structured data", "error"
+            "seo", "issue", "issues", "problem", "problems", "finding", "findings",
+            "audit", "total", "how many", "count", "list", "all", "title", "meta",
+            "description", "heading", "h1", "h2", "link", "broken", "canonical",
+            "noindex", "robot", "sitemap", "alt", "image", "severity", "fix",
+            "score", "rank", "crawl", "duplicate", "schema", "structured data", "error"
         ])
         is_nap_query = any(w in q_lower for w in [
             "phone", "address", "nap", "contact", "call", "location", "email",

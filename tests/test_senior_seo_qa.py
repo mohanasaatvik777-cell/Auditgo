@@ -165,3 +165,16 @@ def test_conversational_followup_expansion(mock_seo_audit_data):
     # Should retrieve the Kubernetes / PostgreSQL passage via history expansion
     combined_excerpts = " ".join(p["excerpt"] for p in passages)
     assert "PostgreSQL" in combined_excerpts or "Kubernetes" in combined_excerpts
+
+
+def test_total_problems_list_all(mock_seo_audit_data):
+    """Verify that asking total problems & listing all generates full complete output without cut off."""
+    engine = GroundedQAEngine(mock_seo_audit_data)
+    res = engine.answer_query("How many problems are there in total? List all of them.", deep=False)
+    assert res["synthesized"] is True
+    assert res["answer"] is not None
+    ans_text = res["answer"]
+    # Check that answer is not truncated at the end
+    assert not ans_text.rstrip().endswith(":")
+    assert "broken_internal_link" in ans_text or "broken" in ans_text.lower()
+

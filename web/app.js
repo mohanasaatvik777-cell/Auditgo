@@ -623,6 +623,18 @@ async function sendChat(deep = false) {
         } catch(_) {}
       }
     }
+
+    if (buffer && buffer.startsWith('data: ')) {
+      try {
+        const ev = JSON.parse(buffer.slice(6));
+        if (ev.token) {
+          fullText += ev.token;
+        }
+        if (ev.done) {
+          finalData = ev;
+        }
+      } catch(_) {}
+    }
   } catch(err) {
     fullText = `### Senior SEO Auditor Notice\n\nCould not complete request: **${esc(err.message)}**.\nPlease verify backend server and API connectivity.`;
     contentEl.innerHTML = renderMarkdown(fullText);

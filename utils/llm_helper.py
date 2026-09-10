@@ -25,35 +25,30 @@ _DEEP_CANDIDATES = [
 ]
 
 # Senior SEO Auditor & Principal Web Engineer Personas
+# Senior SEO Auditor & Principal Web Engineer Personas
 _SYSTEM_QUICK = (
     "You are Auditgo's Senior Technical SEO Auditor and Principal Web Engineer. "
     "You possess deep expertise in Google Search crawling, indexing pipelines, Core Web Vitals, Schema.org, "
     "and on-page architectural SEO.\n\n"
-    "Guidelines:\n"
-    "1. Grounding: Answer strictly based on the provided website content, SEO audit findings, and NAP consistency report. "
-    "Never hallucinate issues or facts not present in the data.\n"
-    "2. Style: Authoritative, concise, developer-actionable, and structured using clean Markdown.\n"
-    "3. Structure: Provide a direct verdict/answer first, followed by relevant technical evidence (tags, status codes, URLs, or excerpts), "
-    "and concrete developer remediation steps where applicable.\n"
-    "4. Cite source URLs and exact metrics whenever available."
+    "CRITICAL GUIDELINES:\n"
+    "1. Complete & Un-truncated Answers: ALWAYS deliver full, complete responses. NEVER stop mid-sentence, leave list items incomplete, or cut off numbers or severity metrics (e.g. always state full counts for High, Medium, Low severity issues without truncating).\n"
+    "2. Format Adherence: Strictly follow the exact structure and output format requested by the user. If the user asks 'How many problems are there in total? List all of them.', state the total count, complete severity breakdown, and list every problem category and issue completely.\n"
+    "3. Conversational & Helpful Tone: Maintain an engaging, helpful, conversational, yet highly authoritative tone. Answer questions naturally like a pair-programming senior engineer assistant.\n"
+    "4. Grounding: Answer strictly based on the provided website content, SEO audit findings, and NAP consistency report. Never hallucinate issues or facts not present in the data.\n"
+    "5. Cite source URLs and exact metrics whenever available."
 )
 
 _SYSTEM_DEEP = (
     "You are Auditgo's Principal Technical SEO Architect and Senior Web Auditor with 15+ years of experience "
     "in enterprise search engine optimization, Google Search Console diagnostic triage, Schema.org semantic modeling, "
     "crawl budget optimization, and production web engineering.\n\n"
-    "Your objective is to provide a comprehensive, deeply technical, and developer-actionable response grounded in the provided "
+    "Your objective is to provide a comprehensive, deeply technical, conversational, and developer-actionable response grounded in the provided "
     "crawl data, on-page SEO audit findings, NAP report, and site architecture.\n\n"
-    "Response Structure (Use Markdown):\n"
-    "- ### Executive Verdict: Direct, high-level summary addressing the user's specific query.\n"
-    "- ### Technical SEO Analysis & Evidence: Deep dive into the data. Highlight exact metrics, severity levels (CRITICAL, WARNING, OPPORTUNITY), "
-    "affected URLs, DOM snippets (e.g. `<title>`, `<meta>`, `<h1>`, canonicals), status codes, or text quotes.\n"
-    "- ### Search Engine Impact: Explain precisely how this influences Googlebot crawling, indexation risk, snippet rendering, CTR, or ranking authority.\n"
-    "- ### Developer Remediation Roadmap: Step-by-step developer instructions with production-ready code snippets (HTML, JSON-LD, HTTP headers, Nginx/Apache rewrites).\n\n"
-    "Rules:\n"
-    "1. Never fabricate or speculate beyond the provided audit findings and crawled website text.\n"
-    "2. If an issue passed or no defect was detected for a queried metric, clearly report it as healthy/passed.\n"
-    "3. Always reference specific URLs and technical evidence from the audit."
+    "CRITICAL GUIDELINES:\n"
+    "1. Complete & Un-truncated Answers: ALWAYS complete your responses fully. NEVER truncate numbers, lists, severity breakdowns (e.g. High/Medium/Low counts), code snippets, or remediation steps.\n"
+    "2. User Requested Format & Conversational Tone: Be conversational, engaging, and natural while strictly adhering to the user's requested output format (e.g. complete lists, step-by-step guides, tables, summaries).\n"
+    "3. Architectural Depth: Highlight exact metrics, severity levels (CRITICAL, HIGH, MEDIUM, LOW), affected URLs, DOM elements, HTTP status codes, and exact quotes.\n"
+    "4. Grounding: Rely strictly on the provided crawl data, SEO audit findings, and NAP report. Do not speculate or fabricate."
 )
 
 
@@ -185,7 +180,7 @@ class LLMHelper:
             return
 
         model   = self.deep_model if deep else self.quick_model
-        max_tok = 900 if deep else 550
+        max_tok = 4000 if deep else 2500
         system  = _SYSTEM_DEEP if deep else _SYSTEM_QUICK
 
         context_block = self._build_context(sources, audit_context)
@@ -236,7 +231,7 @@ class LLMHelper:
             return self._fallback_answer(query, sources, audit_context)
 
         model   = self.deep_model if deep else self.quick_model
-        max_tok = 800 if deep else 450
+        max_tok = 4000 if deep else 2500
         system  = _SYSTEM_DEEP if deep else _SYSTEM_QUICK
 
         context_block = self._build_context(sources, audit_context)
@@ -279,12 +274,34 @@ class LLMHelper:
                 high_count = sum(1 for f in findings if (f.get("severity") or "").lower() == "high")
                 med_count  = sum(1 for f in findings if (f.get("severity") or "").lower() == "medium")
                 low_count  = sum(1 for f in findings if (f.get("severity") or "").lower() == "low")
+                other_count = len(findings) - (high_count + med_count + low_count)
+                
+                counts_str = f"{high_count} High, {med_count} Medium, {low_count} Low"
+                if other_count > 0:
+                    counts_str += f", {other_count} Other"
+
                 audit_lines.append(
-                    f"- Total Detected Findings: {len(findings)} ({high_count} High, {med_count} Medium, {low_count} Low)"
+                    f"- Total Detected Findings: {len(findings)} ({counts_str})"
                 )
-                audit_lines.append("Key Detected SEO Findings:")
-                # Include up to 15 relevant findings
-                for f in findings[:15]:
+
+                # Group findings by metric category to ensure full listing capability
+                metric_groups: Dict[str, List[Dict]] = {}
+                for f in findings:
+                    m = f.get("metric", "other_issue")
+                    metric_groups.setdefault(m, []).append(f)
+
+                audit_lines.append(f"Distinct SEO Problem Categories ({len(metric_groups)} types total):")
+                for metric, items in metric_groups.items():
+                    sev = (items[0].get("severity") or "medium").upper()
+                    evidence_sample = items[0].get("evidence", "")
+                    fix_sample = items[0].get("suggested_fix", "")
+                    audit_lines.append(
+                        f"  * [{sev}] Category '{metric}': {len(items)} instance(s). "
+                        f"Sample Evidence: '{evidence_sample}' | Recommended Fix: '{fix_sample}'"
+                    )
+
+                audit_lines.append("Individual Detected SEO Findings (Up to 30 items):")
+                for f in findings[:30]:
                     pg = f.get("affected_pages") or f.get("page")
                     pg_str = ", ".join(pg) if isinstance(pg, list) else str(pg)
                     audit_lines.append(
