@@ -242,18 +242,41 @@ async def chat_stream(req: ChatStreamRequest, x_session_id: Optional[str] = Head
 
 
 # ── Static serving (AFTER all API routes) ─────────────────────────────────────
-web_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
+def _resolve_web_file(filename: str = "index.html") -> Optional[str]:
+    candidates = [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "web", filename),
+        os.path.join(os.getcwd(), "web", filename),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "api", "web", filename),
+        os.path.join(os.getcwd(), filename),
+    ]
+    for c in candidates:
+        if os.path.isfile(c):
+            return c
+    return None
 
 @app.get("/")
 async def serve_index():
-    return FileResponse(os.path.join(web_dir, "index.html"))
+    path = _resolve_web_file("index.html")
+    if path:
+        return FileResponse(path)
+    return JSONResponse(
+        status_code=404,
+        content={"detail": "Auditgo web interface (index.html) not found."}
+    )
 
 @app.get("/{filename}")
 async def serve_static(filename: str):
-    fp = os.path.join(web_dir, filename)
-    if os.path.isfile(fp):
-        return FileResponse(fp)
-    return FileResponse(os.path.join(web_dir, "index.html"))
+    path = _resolve_web_file(filename)
+    if path:
+        return FileResponse(path)
+    # SPA fallback to index.html
+    indexPath = _resolve_web_file("index.html")
+    if indexPath:
+        return FileResponse(indexPath)
+    return JSONResponse(
+        status_code=404,
+        content={"detail": f"Resource '{filename}' not found."}
+    )
 
 if __name__ == "__main__":
     import uvicorn

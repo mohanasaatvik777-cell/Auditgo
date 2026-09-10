@@ -10,7 +10,10 @@ import os
 # Make project root importable
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from server import app  # noqa: F401 — Vercel needs `app` in scope
+from server import app  # noqa: F401 — Vercel ASGI runtime detects `app`
 
-# Vercel's Python runtime uses Mangum internally to adapt ASGI ↔ Lambda
-# No extra code needed — just export `app`.
+try:
+    from mangum import Mangum
+    handler = Mangum(app)
+except Exception:
+    handler = app
