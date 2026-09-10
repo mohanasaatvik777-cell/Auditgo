@@ -201,6 +201,10 @@ async function runAudit(url, query) {
       overlay.classList.remove('visible');
       showToast(`Audit complete — ${count} finding${count!==1?'s':''}`, 'success');
       switchView('reports');
+      if (query && query.trim()) {
+        const qaTabBtn = document.querySelector('.report-tab[data-tab="r-qa"]');
+        if (qaTabBtn) qaTabBtn.click();
+      }
     }, 500);
 
   } catch(err) {
@@ -355,7 +359,12 @@ function renderHistory() {
     e.stopPropagation();
     const entry = auditHistory.find(h => h.id == btn.dataset.id);
     if (!entry) return;
-    if (btn.dataset.action === 'view') { currentResults = entry.data; switchView('reports'); }
+    if (btn.dataset.action === 'view') {
+      currentResults = entry.data;
+      if (currentResults) currentResults._url = entry.url;
+      chatCurrentUrl = entry.url;
+      switchView('reports');
+    }
     else { if (urlInput) urlInput.value = entry.url; if (queryInput) queryInput.value = entry.query||''; switchView('audit'); setTimeout(() => runAudit(entry.url, entry.query||''), 120); }
   }));
 }
@@ -400,7 +409,10 @@ function seedChat(ans, url) {
   }
 
   chatMessages.innerHTML = '';
-  const emptyEl = createEmptyState('Run an audit or ask a question about the website to start the conversation.');
+  const emptyMsg = chatCurrentUrl
+    ? `Audit complete for ${formatDisplayUrl(chatCurrentUrl)}. Ask any technical SEO question or pick a suggestion below.`
+    : 'Run an audit or ask a question about the website to start the conversation.';
+  const emptyEl = createEmptyState(emptyMsg);
   chatMessages.appendChild(emptyEl);
 
   if (!ans || (!ans.query && !ans.answer && !ans.excerpt)) return;
@@ -534,10 +546,18 @@ function attachCodeCopyButtons(container) {
 /* ── Send (quick streaming by default) ─────────────────── */
 async function sendChat(deep = false) {
   if (!chatInput || chatIsBusy) return;
-  const question = chatInput.value.trim();
-  if (!question) return;
+  const question = chatInput?.value?.trim();
+  if (!question || chatIsBusy) return;
 
-  if (!chatCurrentUrl) { showToast('Run an audit first to enable Q&A','error'); return; }
+  if (!chatCurrentUrl) {
+    const inputUrl = normalizeUrl(urlInput?.value);
+    if (inputUrl) {
+      chatCurrentUrl = inputUrl;
+    } else {
+      showToast('Enter a target URL and run an audit first to enable Q&A', 'error');
+      return;
+    }
+  }
 
   chatInput.value = '';
   chatIsBusy = true;

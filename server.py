@@ -159,9 +159,30 @@ async def chat_stream(req: ChatStreamRequest, x_session_id: Optional[str] = Head
 
     crawl_data = session_store.crawls.get(url_key) or _crawl_cache.get(url_key)
     if not crawl_data:
+        # Auto-heal: perform on-demand crawl if cache is empty or expired
+        try:
+            loop = asyncio.get_event_loop()
+            results = await loop.run_in_executor(
+                None, run_agent, req.url.strip(), None, "outputs", []
+            )
+            crawl_data = results.pop("_crawl_data", None)
+            if crawl_data:
+                crawl_data.setdefault("audit", results.get("audit", []))
+                crawl_data.setdefault("nap_report", results.get("nap_report", []))
+                crawl_data.setdefault("crawl_stats", results.get("crawl_stats", {}))
+                crawl_data.setdefault("url", req.url.strip())
+                session_store.crawls[url_key] = crawl_data
+                _store_global_crawl(req.url, crawl_data)
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Could not retrieve or crawl site context for '{req.url}': {str(e)}",
+            )
+
+    if not crawl_data:
         raise HTTPException(
             status_code=404,
-            detail="No cached crawl data for this session. Please run an audit first.",
+            detail="No crawl data available for this session. Please run an audit first.",
         )
 
     deep = req.deep or False
