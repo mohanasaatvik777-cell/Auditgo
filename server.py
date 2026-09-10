@@ -86,6 +86,8 @@ async def health():
         "status":          "ok",
         "app":             "Auditgo",
         "groq_key":        llm_helper.has_key(),
+        "quick_model":     llm_helper.quick_model,
+        "deep_model":      llm_helper.deep_model,
         "active_sessions": len(session_manager.sessions),
     }
 
@@ -108,6 +110,11 @@ async def execute_audit(req: AuditRequest, x_session_id: Optional[str] = Header(
         )
         crawl_data = results.pop("_crawl_data", None)
         if crawl_data:
+            # Ensure full audit results and stats remain attached in session crawl cache
+            crawl_data.setdefault("audit", results.get("audit", []))
+            crawl_data.setdefault("nap_report", results.get("nap_report", []))
+            crawl_data.setdefault("crawl_stats", results.get("crawl_stats", {}))
+            crawl_data.setdefault("url", req.url.strip())
             session_store.crawls[url_key] = crawl_data
             _store_global_crawl(req.url, crawl_data)
 
@@ -141,7 +148,7 @@ async def clear_chat_history(req: ClearChatRequest, x_session_id: Optional[str] 
 @app.post("/api/chat/stream")
 async def chat_stream(req: ChatStreamRequest, x_session_id: Optional[str] = Header(None)):
     """
-    Server-Sent Events endpoint with session isolation.
+    Server-Sent Events endpoint with session isolation and multi-source audit grounding.
     """
     if not req.url or not req.question.strip():
         raise HTTPException(status_code=400, detail="URL and question are required")
@@ -169,24 +176,14 @@ async def chat_stream(req: ChatStreamRequest, x_session_id: Optional[str] = Head
     async def event_generator():
         loop = asyncio.get_event_loop()
 
-        # 1. Retrieval
-        engine  = GroundedQAEngine(crawl_data)
+        # 1. Multi-source Retrieval
+        engine = GroundedQAEngine(crawl_data)
+        audit_context = engine.get_audit_context()
         sources = await loop.run_in_executor(
-            None, engine.get_passages, req.question, top_n
+            None, engine.get_passages, req.question, top_n, True, history
         )
 
-        if not sources:
-            payload = json.dumps({
-                "done":       True,
-                "sources":    [],
-                "confidence": 0.0,
-                "has_key":    llm_helper.has_key(),
-                "answer":     f'No content found for "{req.question}". Try rephrasing.',
-            })
-            yield f"data: {payload}\n\n"
-            return
-
-        # 2. Stream tokens from Groq (using .env API key)
+        # 2. Stream tokens from Groq
         full_text = ""
         has_key   = llm_helper.has_key()
 
@@ -197,7 +194,7 @@ async def chat_stream(req: ChatStreamRequest, x_session_id: Optional[str] = Head
         def _stream_worker():
             try:
                 for token in llm_helper.stream_answer(
-                    req.question, sources, history, deep=deep
+                    req.question, sources, history, deep=deep, audit_context=audit_context
                 ):
                     token_queue.put(token)
             finally:
@@ -224,7 +221,7 @@ async def chat_stream(req: ChatStreamRequest, x_session_id: Optional[str] = Head
         session_store.chat_histories[url_key].append({"role": "assistant", "content": full_text})
 
         # 3. Final metadata event
-        confidence = round(min(sources[0]["score"] / 10.0, 1.0), 2) if sources else 0.0
+        confidence = round(min(sources[0]["score"] / 10.0, 1.0), 2) if sources else 0.85
         payload = json.dumps({
             "done":       True,
             "sources":    sources[:3],

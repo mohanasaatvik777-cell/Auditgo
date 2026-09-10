@@ -45,6 +45,12 @@ def run_agent(
     print(f"      Generated NAP consistency report -> {nap_file}")
 
     print("[4/4] Running Grounded Website Q&A...")
+    # Attach audit & nap context so Q&A engine can answer both content and SEO diagnostic questions
+    crawl_data["audit"] = audit_results
+    crawl_data["nap_report"] = nap_results
+    crawl_data["crawl_stats"] = {"crawled": pages_crawled, "skipped": pages_skipped}
+    crawl_data["url"] = url
+
     qa_engine     = GroundedQAEngine(crawl_data)
     answer_result = qa_engine.answer_query(query, conversation_history or [])
     answer_file   = os.path.join(output_dir, "answer.json")

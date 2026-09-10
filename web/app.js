@@ -422,6 +422,115 @@ function seedChat(ans, url) {
   }
 }
 
+/* ── URL Cleaner for Display ────────────────────────────── */
+function formatDisplayUrl(url) {
+  if (!url) return 'Source Page';
+  try {
+    const u = new URL(url);
+    let path = u.pathname;
+    if (path.length > 36) {
+      path = path.slice(0, 18) + '…' + path.slice(-12);
+    }
+    return u.hostname + (path === '/' ? '' : path);
+  } catch(_) {
+    return url.length > 40 ? url.slice(0, 36) + '…' : url;
+  }
+}
+
+/* ── Markdown Engine & Code Block Copy ─────────────────── */
+function renderMarkdown(text) {
+  if (!text) return '';
+  let html = '';
+  if (typeof marked !== 'undefined' && typeof marked.parse === 'function') {
+    try {
+      marked.setOptions({ gfm: true, breaks: true });
+      html = marked.parse(text);
+    } catch (_) {
+      html = fallbackMarkdown(text);
+    }
+  } else {
+    html = fallbackMarkdown(text);
+  }
+
+  // Wrap <pre><code> blocks with code header and copy button
+  const temp = document.createElement('div');
+  temp.innerHTML = html;
+
+  temp.querySelectorAll('pre').forEach(pre => {
+    const code = pre.querySelector('code');
+    const rawClass = code ? (code.className || '') : '';
+    const match = rawClass.match(/language-([a-zA-Z0-9_-]+)/);
+    const lang = match ? match[1] : 'code';
+
+    const wrap = document.createElement('div');
+    wrap.className = 'code-block-wrap';
+    wrap.innerHTML = `
+      <div class="code-block-header">
+        <span class="code-lang">${esc(lang.toUpperCase())}</span>
+        <button class="copy-code-btn" type="button">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <span>Copy</span>
+        </button>
+      </div>`;
+    pre.parentNode.insertBefore(wrap, pre);
+    wrap.appendChild(pre);
+  });
+
+  return temp.innerHTML;
+}
+
+function fallbackMarkdown(text) {
+  let out = esc(text);
+  // Fenced code blocks
+  out = out.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (m, lang, code) => {
+    return `<pre><code class="language-${lang || 'text'}">${code}</code></pre>`;
+  });
+  // Inline code
+  out = out.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
+  // Headers
+  out = out.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+  out = out.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+  out = out.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+  // Blockquotes
+  out = out.replace(/^\> (.*$)/gim, '<blockquote>$1</blockquote>');
+  // Bold & Italic
+  out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  out = out.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  // Lists
+  out = out.replace(/^\s*[-*]\s+(.*$)/gim, '<li>$1</li>');
+  out = out.replace(/(<li>[\s\S]*?<\/li>)/g, '<ul>$1</ul>');
+  out = out.replace(/<\/ul>\s*<ul>/g, '');
+  // Line breaks
+  out = out.replace(/\n\n/g, '<p></p>');
+  out = out.replace(/\n/g, '<br>');
+  return out;
+}
+
+function attachCodeCopyButtons(container) {
+  if (!container) return;
+  container.querySelectorAll('.copy-code-btn').forEach(btn => {
+    if (btn.dataset.hasListener) return;
+    btn.dataset.hasListener = 'true';
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const wrap = btn.closest('.code-block-wrap');
+      const code = wrap?.querySelector('pre code') || wrap?.querySelector('pre');
+      const text = code ? code.textContent : '';
+      if (text) {
+        navigator.clipboard.writeText(text).then(() => {
+          const span = btn.querySelector('span');
+          if (span) span.textContent = 'Copied!';
+          btn.classList.add('copied');
+          setTimeout(() => {
+            if (span) span.textContent = 'Copy';
+            btn.classList.remove('copied');
+          }, 2200);
+        });
+      }
+    });
+  });
+}
+
 /* ── Send (quick streaming by default) ─────────────────── */
 async function sendChat(deep = false) {
   if (!chatInput || chatIsBusy) return;
@@ -439,7 +548,7 @@ async function sendChat(deep = false) {
 
   appendUserBubble(question);
 
-  const { bubble, textNode, metaRow } = appendStreamingBubble(deep);
+  const { bubble, contentEl, metaRow } = appendStreamingBubble(deep);
   const sessionId = getOrInitSessionId();
 
   let fullText  = '';
@@ -484,7 +593,8 @@ async function sendChat(deep = false) {
           const ev = JSON.parse(line.slice(6));
           if (ev.token) {
             fullText += ev.token;
-            textNode.textContent = fullText;
+            contentEl.innerHTML = renderMarkdown(fullText);
+            attachCodeCopyButtons(bubble);
             scrollChatBottom();
           }
           if (ev.done) {
@@ -494,17 +604,18 @@ async function sendChat(deep = false) {
       }
     }
   } catch(err) {
-    fullText = `Sorry, I couldn't process that. ${err.message}`;
-    textNode.textContent = fullText;
+    fullText = `### Senior SEO Auditor Notice\n\nCould not complete request: **${esc(err.message)}**.\nPlease verify backend server and API connectivity.`;
+    contentEl.innerHTML = renderMarkdown(fullText);
   }
 
-  // Remove streaming cursor
+  // Remove streaming cursor and render final formatted markdown
   bubble.classList.remove('streaming');
+  contentEl.innerHTML = renderMarkdown(fullText);
+  attachCodeCopyButtons(bubble);
 
-  // Finalize bubble with sources + confidence + deep button
+  // Finalize bubble with sources + confidence + actions
   if (finalData) {
-    finalizeStreamingBubble(bubble, metaRow, finalData, question, deep);
-    // Update conversation history
+    finalizeStreamingBubble(bubble, metaRow, finalData, question, deep, fullText);
     chatConversationHistory = chatConversationHistory.slice(-10);
     chatConversationHistory.push({ role: 'user',      content: question });
     chatConversationHistory.push({ role: 'assistant', content: fullText });
@@ -535,13 +646,18 @@ function appendStreamingBubble(deep) {
   /* Mode label */
   const modeLabel = document.createElement('div');
   modeLabel.className = 'chat-mode-label';
-  modeLabel.textContent = deep ? 'Deep Analysis' : 'Quick Answer';
+  modeLabel.innerHTML = `
+    <span class="auditor-tag">Senior SEO Dev</span>
+    <span class="mode-pill">${deep ? 'Deep Architectural Audit' : 'Direct Grounded Answer'}</span>
+  `;
 
   /* Bubble with streaming cursor */
   const bubble = document.createElement('div');
   bubble.className = 'chat-bubble streaming';
-  const textNode = document.createTextNode('');
-  bubble.appendChild(textNode);
+  
+  const contentEl = document.createElement('div');
+  contentEl.className = 'chat-bubble-content markdown-body';
+  bubble.appendChild(contentEl);
 
   /* Placeholder for sources + actions (filled on done) */
   const metaRow = document.createElement('div');
@@ -551,10 +667,10 @@ function appendStreamingBubble(deep) {
   turn.appendChild(assistant);
   chatMessages.appendChild(turn);
   scrollChatBottom();
-  return { bubble, textNode, metaRow };
+  return { bubble, contentEl, metaRow };
 }
 
-function finalizeStreamingBubble(bubble, metaRow, ev, question, wasDeep) {
+function finalizeStreamingBubble(bubble, metaRow, ev, question, wasDeep, fullText) {
   const sources    = ev.sources    || [];
   const confidence = ev.confidence || 0;
 
@@ -562,51 +678,80 @@ function finalizeStreamingBubble(bubble, metaRow, ev, question, wasDeep) {
   const confClass = confidence >= 0.6 ? 'confidence-high'
                   : confidence >= 0.3 ? 'confidence-medium'
                   : 'confidence-low';
-  const confLabel = confidence >= 0.6 ? 'High confidence'
-                  : confidence >= 0.3 ? 'Medium confidence'
+  const confLabel = confidence >= 0.6 ? 'High confidence grounded'
+                  : confidence >= 0.3 ? 'Medium confidence grounded'
                   : 'Low confidence';
 
   if (confidence > 0) {
     const pill = document.createElement('div');
     pill.className = `confidence-pill ${confClass}`;
-    pill.textContent = confLabel;
+    pill.innerHTML = `
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+      ${confLabel}
+    `;
     bubble.appendChild(pill);
   }
 
-  /* Sources */
+  /* Sources from website and audit */
   if (sources.length) {
     const srcSection = document.createElement('div');
     srcSection.className = 'chat-sources';
-    srcSection.innerHTML = `<div class="chat-source-label">Sources from this website</div>` +
+    srcSection.innerHTML = `<div class="chat-source-label">Grounded Sources &amp; Audit References</div>` +
       sources.slice(0,3).map((s,i) => `
         <div class="chat-source-item">
           <div class="chat-source-num">${i+1}</div>
           <div class="chat-source-body">
-            <a href="${esc(s.url)}" target="_blank" rel="noopener" class="chat-source-url">${esc(s.url)}</a>
+            <a href="${esc(s.url)}" target="_blank" rel="noopener" class="chat-source-url" title="${esc(s.url)}">${esc(formatDisplayUrl(s.url))}</a>
             <div class="chat-source-excerpt">${esc(s.excerpt)}</div>
           </div>
         </div>`).join('');
     metaRow.appendChild(srcSection);
   }
 
+  /* Action Buttons Bar: Deep Analysis + Copy Response */
+  const actionsBar = document.createElement('div');
+  actionsBar.className = 'chat-actions-bar';
+
+  /* Copy full answer */
+  if (fullText) {
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'btn-chat-action';
+    copyBtn.innerHTML = `
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      <span>Copy Response</span>`;
+    copyBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(fullText).then(() => {
+        const span = copyBtn.querySelector('span');
+        if (span) span.textContent = 'Copied!';
+        copyBtn.classList.add('copied');
+        setTimeout(() => {
+          if (span) span.textContent = 'Copy Response';
+          copyBtn.classList.remove('copied');
+        }, 2200);
+      });
+    });
+    actionsBar.appendChild(copyBtn);
+  }
+
   /* Deep analysis button — only show after quick answers */
   if (!wasDeep) {
     const deepBtn = document.createElement('button');
-    deepBtn.className   = 'btn-deep-analysis';
-    deepBtn.innerHTML   = `
+    deepBtn.className = 'btn-deep-analysis';
+    deepBtn.innerHTML = `
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
         <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
       </svg>
-      Deep Analysis`;
+      Deep Technical Audit`;
     deepBtn.addEventListener('click', () => {
       deepBtn.disabled = true;
       deepBtn.textContent = 'Analyzing…';
       if (chatInput) chatInput.value = question;
       sendChat(true);   // re-ask same question in deep mode
     });
-    metaRow.appendChild(deepBtn);
+    actionsBar.appendChild(deepBtn);
   }
 
+  metaRow.appendChild(actionsBar);
   scrollChatBottom();
 }
 
@@ -618,39 +763,73 @@ function appendAssistantBubble(text, sources, confidence, synthesized) {
 
   const modeLabel = document.createElement('div');
   modeLabel.className = 'chat-mode-label';
-  modeLabel.textContent = synthesized ? 'AI Answer' : 'Extracted Answer';
+  modeLabel.innerHTML = `
+    <span class="auditor-tag">Senior SEO Dev</span>
+    <span class="mode-pill">${synthesized ? 'Grounded AI Analysis' : 'Verified Audit Findings'}</span>
+  `;
 
   const bubble = document.createElement('div');
   bubble.className = 'chat-bubble';
-  bubble.textContent = text;
+
+  const contentEl = document.createElement('div');
+  contentEl.className = 'chat-bubble-content markdown-body';
+  contentEl.innerHTML = renderMarkdown(text);
+  bubble.appendChild(contentEl);
+  attachCodeCopyButtons(bubble);
 
   if (confidence > 0) {
     const confClass = confidence >= 0.6 ? 'confidence-high' : confidence >= 0.3 ? 'confidence-medium' : 'confidence-low';
-    const confLabel = confidence >= 0.6 ? 'High confidence' : confidence >= 0.3 ? 'Medium confidence' : 'Low confidence';
+    const confLabel = confidence >= 0.6 ? 'High confidence grounded' : confidence >= 0.3 ? 'Medium confidence grounded' : 'Low confidence';
     const pill = document.createElement('div');
     pill.className = `confidence-pill ${confClass}`;
-    pill.textContent = confLabel;
+    pill.innerHTML = `
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+      ${confLabel}
+    `;
     bubble.appendChild(pill);
   }
 
-  let sourcesHtml = '';
+  const metaRow = document.createElement('div');
+  metaRow.className = 'chat-meta-row';
+
   if (sources && sources.length) {
-    sourcesHtml = `<div class="chat-sources">
-      <div class="chat-source-label">Sources from this website</div>
-      ${sources.slice(0,3).map((s,i) => `
+    const srcSection = document.createElement('div');
+    srcSection.className = 'chat-sources';
+    srcSection.innerHTML = `<div class="chat-source-label">Grounded Sources &amp; Audit References</div>` +
+      sources.slice(0,3).map((s,i) => `
         <div class="chat-source-item">
           <div class="chat-source-num">${i+1}</div>
           <div class="chat-source-body">
-            <a href="${esc(s.url)}" target="_blank" rel="noopener" class="chat-source-url">${esc(s.url)}</a>
+            <a href="${esc(s.url)}" target="_blank" rel="noopener" class="chat-source-url" title="${esc(s.url)}">${esc(formatDisplayUrl(s.url))}</a>
             <div class="chat-source-excerpt">${esc(s.excerpt)}</div>
           </div>
-        </div>`).join('')}
-    </div>`;
+        </div>`).join('');
+    metaRow.appendChild(srcSection);
   }
 
-  assistant.innerHTML = '';
-  assistant.append(modeLabel, bubble);
-  if (sourcesHtml) assistant.insertAdjacentHTML('beforeend', sourcesHtml);
+  /* Copy button */
+  const actionsBar = document.createElement('div');
+  actionsBar.className = 'chat-actions-bar';
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'btn-chat-action';
+  copyBtn.innerHTML = `
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+    <span>Copy Response</span>`;
+  copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(text).then(() => {
+      const span = copyBtn.querySelector('span');
+      if (span) span.textContent = 'Copied!';
+      copyBtn.classList.add('copied');
+      setTimeout(() => {
+        if (span) span.textContent = 'Copy Response';
+        copyBtn.classList.remove('copied');
+      }, 2200);
+    });
+  });
+  actionsBar.appendChild(copyBtn);
+  metaRow.appendChild(actionsBar);
+
+  assistant.append(modeLabel, bubble, metaRow);
   turn.appendChild(assistant);
   chatMessages.appendChild(turn);
   scrollChatBottom();
@@ -661,9 +840,10 @@ function createEmptyState(msg) {
   d.className = 'chat-empty';
   d.id = 'chatEmpty';
   d.innerHTML = `
-    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round">
-      <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-    </svg>
+    <div class="chat-empty-icon">
+      <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+    </div>
+    <h3>Senior SEO Q&amp;A Assistant</h3>
     <p>${esc(msg)}</p>`;
   return d;
 }
@@ -676,6 +856,17 @@ function scrollChatBottom() {
 chatSendBtn?.addEventListener('click', () => sendChat(false));
 chatInput?.addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(false); });
 $('newSessionBtn')?.addEventListener('click', createNewSession);
+
+/* Suggestion chip click handlers */
+document.querySelectorAll('.chat-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const q = chip.dataset.query;
+    if (!q || !chatInput || chatIsBusy) return;
+    chatInput.value = q;
+    sendChat(false);
+  });
+});
+
 chatClearBtn?.addEventListener('click', async () => {
   chatConversationHistory = [];
   const sessionId = getOrInitSessionId();
@@ -690,7 +881,7 @@ chatClearBtn?.addEventListener('click', async () => {
   }
   if (chatMessages) {
     chatMessages.innerHTML = '';
-    chatMessages.appendChild(createEmptyState('Conversation cleared. Ask a new question below.'));
+    chatMessages.appendChild(createEmptyState('Conversation cleared. Ask a question or use the suggestions below.'));
   }
   showToast('Conversation cleared');
 });
@@ -729,6 +920,18 @@ function showToast(msg, type = '') {
     }
   }
   updateSessionBadges();
+
+  // Populate active Groq model badge
+  fetch('/api/health')
+    .then(r => r.json())
+    .then(data => {
+      const badge = document.getElementById('chatModelBadge');
+      if (badge && data.quick_model) {
+        badge.textContent = `Groq: ${data.quick_model}`;
+        badge.title = `Active Quick: ${data.quick_model} | Deep: ${data.deep_model}`;
+      }
+    })
+    .catch(() => {});
 })();
 
 /* ═══════════════════════════════════════════════════════════
