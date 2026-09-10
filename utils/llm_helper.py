@@ -11,21 +11,19 @@ _DEEP_MODEL  = "llama-3.3-70b-versatile"  # ~1s first token, much smarter
 
 # System prompts
 _SYSTEM_QUICK = (
-    "You are Auditgo, an AI assistant that answers questions about a specific website. "
-    "Rules: Only use the provided website excerpts — never hallucinate. "
-    "Give a direct, clear answer in 2-4 sentences. Cite the source URL."
+    "You are Auditgo, an AI intelligence assistant that analyzes website content for users. "
+    "Carefully read and analyze all provided website excerpts and metadata to answer the user's question accurately and insightfully. "
+    "Do not hallucinate facts outside the website context. Give a direct, helpful, well-structured answer in 2-4 sentences and cite relevant source URLs."
 )
 
 _SYSTEM_DEEP = (
-    "You are Auditgo's senior research analyst. You answer questions about a specific website "
-    "with depth and professional precision.\n"
+    "You are Auditgo's senior research analyst. You analyze website content and data with depth and professional precision.\n"
     "Rules:\n"
-    "1. Only use information from the provided source excerpts — never hallucinate.\n"
-    "2. Structure your answer: Direct answer → Supporting context → Key details.\n"
-    "3. Synthesize multiple sources cohesively when relevant.\n"
-    "4. Cite source URLs explicitly.\n"
-    "5. If sources lack the information, say so clearly.\n"
-    "6. Write in a professional tone suitable for SEO professionals and business analysts."
+    "1. Thoroughly analyze the provided website excerpts, metadata, and page context to answer the user's question.\n"
+    "2. Structure your answer clearly: Direct answer → Detailed context & analysis → Key details.\n"
+    "3. Synthesize multiple page sources cohesively.\n"
+    "4. Explicitly cite source URLs.\n"
+    "5. Maintain a professional tone suitable for business analysts and web engineering professionals."
 )
 
 
@@ -57,6 +55,8 @@ class LLMHelper:
             self._build_clients(api_key.strip())
 
     def has_key(self) -> bool:
+        if not self.client:
+            self._init_client()
         return bool(self.api_key and (self.client or self.async_client))
 
     # ── SEO fix refinement (unchanged) ────────────────────────
@@ -102,8 +102,8 @@ class LLMHelper:
             return
 
         model     = _DEEP_MODEL  if deep else _QUICK_MODEL
-        max_tok   = 500          if deep else 180
-        top_n     = 5            if deep else 2
+        max_tok   = 500          if deep else 250
+        top_n     = 5            if deep else 3
         system    = _SYSTEM_DEEP if deep else _SYSTEM_QUICK
 
         context_block = self._build_context(sources[:top_n])
@@ -138,8 +138,8 @@ class LLMHelper:
             return self._fallback_answer(query, sources)
 
         model   = _DEEP_MODEL  if deep else _QUICK_MODEL
-        max_tok = 400          if deep else 180
-        top_n   = 5            if deep else 2
+        max_tok = 400          if deep else 250
+        top_n   = 5            if deep else 3
         system  = _SYSTEM_DEEP if deep else _SYSTEM_QUICK
 
         context_block = self._build_context(sources[:top_n])
@@ -177,25 +177,20 @@ class LLMHelper:
         msgs.append({
             "role": "user",
             "content": (
-                f"Question: {query}\n\n"
-                f"Website Excerpts:\n{context_block}"
+                f"User Question: {query}\n\n"
+                f"Website Content & Excerpts:\n{context_block}"
             ),
         })
         return msgs
 
     def _fallback_answer(self, query: str, sources: List[Dict]) -> str:
         if not sources:
-            return (
-                f'No relevant content found for "{query}".\n\n'
-                "Tip: Add a Groq API key in Settings for AI-synthesized answers."
-            )
-        lines = [f'Here is what the website says about "{query}":\n']
+            return f'No relevant content found on the website for "{query}".'
+        lines = [f'Here is what the website context says regarding "{query}":\n']
         for i, s in enumerate(sources[:3], 1):
             lines.append(f"{i}. From {s.get('url','')}:\n   \"{s.get('excerpt','')}\"")
-        lines.append(
-            "\n💡 Add a Groq API key in Settings for a smarter, synthesized answer."
-        )
         return "\n".join(lines)
 
 
 llm_helper = LLMHelper()
+

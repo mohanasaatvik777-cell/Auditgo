@@ -1,7 +1,7 @@
 import os
 import json
 import asyncio
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -21,21 +21,41 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── In-memory crawl session cache ─────────────────────────────────────────────
+# ── Multi-Tenant Session Management ───────────────────────────────────────────
+class SessionStore:
+    def __init__(self, session_id: str):
+        self.session_id = session_id
+        self.crawls: Dict[str, dict] = {}
+        self.chat_histories: Dict[str, List[Dict]] = {}
+
+class MultiTenantSessionManager:
+    def __init__(self, max_sessions: int = 100):
+        self.sessions: Dict[str, SessionStore] = {}
+        self.max_sessions = max_sessions
+
+    def get_session(self, session_id: Optional[str]) -> SessionStore:
+        sid = (session_id or "default_session").strip()
+        if sid not in self.sessions:
+            if len(self.sessions) >= self.max_sessions:
+                # Prune oldest session if max capacity reached
+                self.sessions.pop(next(iter(self.sessions)))
+            self.sessions[sid] = SessionStore(sid)
+        return self.sessions[sid]
+
+session_manager = MultiTenantSessionManager()
+
+# Global fallback cache for legacy/CLI access
 _crawl_cache: Dict[str, dict] = {}
-MAX_CACHE = 5
+MAX_CACHE = 10
 
 def _cache_key(url: str) -> str:
     return url.strip().rstrip("/").lower()
 
-def _store_crawl(url: str, crawl_data: dict):
+def _store_global_crawl(url: str, crawl_data: dict):
     key = _cache_key(url)
     _crawl_cache[key] = crawl_data
     if len(_crawl_cache) > MAX_CACHE:
         del _crawl_cache[next(iter(_crawl_cache))]
-
-def _get_crawl(url: str) -> Optional[dict]:
-    return _crawl_cache.get(_cache_key(url))
 
 
 # ── Models ─────────────────────────────────────────────────────────────────────
@@ -44,14 +64,18 @@ class AuditRequest(BaseModel):
     url: str
     query: Optional[str] = None
     output_dir: Optional[str] = "outputs"
-    groq_api_key: Optional[str] = None
+    session_id: Optional[str] = "default_session"
 
 class ChatStreamRequest(BaseModel):
     url: str
     question: str
-    conversation_history: Optional[List[Dict]] = []
-    groq_api_key: Optional[str] = None
-    deep: Optional[bool] = False           # True = deep analysis mode
+    conversation_history: Optional[List[Dict]] = None
+    deep: Optional[bool] = False
+    session_id: Optional[str] = "default_session"
+
+class ClearChatRequest(BaseModel):
+    url: str
+    session_id: Optional[str] = "default_session"
 
 
 # ── API routes ─────────────────────────────────────────────────────────────────
@@ -59,19 +83,21 @@ class ChatStreamRequest(BaseModel):
 @app.get("/api/health")
 async def health():
     return {
-        "status":   "ok",
-        "app":      "Auditgo",
-        "groq_key": llm_helper.has_key(),
+        "status":          "ok",
+        "app":             "Auditgo",
+        "groq_key":        llm_helper.has_key(),
+        "active_sessions": len(session_manager.sessions),
     }
 
 
 @app.post("/api/audit")
-async def execute_audit(req: AuditRequest):
+async def execute_audit(req: AuditRequest, x_session_id: Optional[str] = Header(None)):
     if not req.url or not req.url.strip():
         raise HTTPException(status_code=400, detail="Target URL is required")
 
-    if req.groq_api_key and req.groq_api_key.strip():
-        llm_helper.set_api_key(req.groq_api_key.strip())
+    session_id = x_session_id or req.session_id or "default_session"
+    session_store = session_manager.get_session(session_id)
+    url_key = _cache_key(req.url)
 
     try:
         loop    = asyncio.get_event_loop()
@@ -82,47 +108,68 @@ async def execute_audit(req: AuditRequest):
         )
         crawl_data = results.pop("_crawl_data", None)
         if crawl_data:
-            _store_crawl(req.url.strip(), crawl_data)
+            session_store.crawls[url_key] = crawl_data
+            _store_global_crawl(req.url, crawl_data)
 
-        return JSONResponse(content={"status": "success", "data": results})
+        return JSONResponse(content={
+            "status": "success",
+            "session_id": session_id,
+            "data": results,
+        })
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/chat/history")
+async def get_chat_history(url: str, session_id: Optional[str] = None, x_session_id: Optional[str] = Header(None)):
+    sid = x_session_id or session_id or "default_session"
+    session_store = session_manager.get_session(sid)
+    url_key = _cache_key(url)
+    history = session_store.chat_histories.get(url_key, [])
+    return {"status": "success", "session_id": sid, "url": url, "history": history}
+
+
+@app.post("/api/chat/clear")
+async def clear_chat_history(req: ClearChatRequest, x_session_id: Optional[str] = Header(None)):
+    sid = x_session_id or req.session_id or "default_session"
+    session_store = session_manager.get_session(sid)
+    url_key = _cache_key(req.url)
+    session_store.chat_histories[url_key] = []
+    return {"status": "success", "session_id": sid, "url": req.url}
+
+
 @app.post("/api/chat/stream")
-async def chat_stream(req: ChatStreamRequest):
+async def chat_stream(req: ChatStreamRequest, x_session_id: Optional[str] = Header(None)):
     """
-    Server-Sent Events endpoint.
-
-    Quick mode (deep=False): llama-3.1-8b-instant, top-2 passages, ~1-3s.
-    Deep  mode (deep=True):  llama-3.3-70b-versatile, top-5 passages, ~5-10s.
-
-    Stream format:
-        data: {"token": "..."}          — partial token
-        data: {"done": true, "sources": [...], "confidence": 0.x, "has_key": bool}
+    Server-Sent Events endpoint with session isolation.
     """
     if not req.url or not req.question.strip():
         raise HTTPException(status_code=400, detail="URL and question are required")
 
-    # Always honour key sent from browser
-    if req.groq_api_key and req.groq_api_key.strip():
-        llm_helper.set_api_key(req.groq_api_key.strip())
+    sid = x_session_id or req.session_id or "default_session"
+    session_store = session_manager.get_session(sid)
+    url_key = _cache_key(req.url)
 
-    crawl_data = _get_crawl(req.url.strip())
+    crawl_data = session_store.crawls.get(url_key) or _crawl_cache.get(url_key)
     if not crawl_data:
         raise HTTPException(
             status_code=404,
-            detail="No cached crawl data. Please run a full audit first.",
+            detail="No cached crawl data for this session. Please run an audit first.",
         )
 
-    deep   = req.deep or False
-    top_n  = 5 if deep else 2
-    history = req.conversation_history or []
+    deep = req.deep or False
+    top_n = 5 if deep else 3
+
+    # Resolve conversation history for this session & url
+    if req.conversation_history is not None:
+        history = list(req.conversation_history)
+    else:
+        history = list(session_store.chat_histories.get(url_key, []))
 
     async def event_generator():
         loop = asyncio.get_event_loop()
 
-        # ── 1. BM25 retrieval (fast, in thread pool) ──────────
+        # 1. Retrieval
         engine  = GroundedQAEngine(crawl_data)
         sources = await loop.run_in_executor(
             None, engine.get_passages, req.question, top_n
@@ -134,20 +181,15 @@ async def chat_stream(req: ChatStreamRequest):
                 "sources":    [],
                 "confidence": 0.0,
                 "has_key":    llm_helper.has_key(),
-                "answer":     (
-                    f'No relevant content found for "{req.question}". '
-                    "Try rephrasing or asking a different question."
-                ),
+                "answer":     f'No content found for "{req.question}". Try rephrasing.',
             })
             yield f"data: {payload}\n\n"
             return
 
-        # ── 2. Stream tokens from Groq ─────────────────────────
+        # 2. Stream tokens from Groq (using .env API key)
         full_text = ""
         has_key   = llm_helper.has_key()
 
-        # run_in_executor can't yield — so we stream directly in a thread
-        # via a queue bridging sync generator → async generator
         import queue as _queue
         token_queue: _queue.Queue = _queue.Queue()
         SENTINEL = object()
@@ -173,9 +215,15 @@ async def chat_stream(req: ChatStreamRequest):
             full_text += token
             yield f"data: {json.dumps({'token': token})}\n\n"
 
-        await stream_future  # ensure thread finishes
+        await stream_future
 
-        # ── 3. Send final metadata event ──────────────────────
+        # Save turns into multi-tenant session history
+        if url_key not in session_store.chat_histories:
+            session_store.chat_histories[url_key] = []
+        session_store.chat_histories[url_key].append({"role": "user", "content": req.question})
+        session_store.chat_histories[url_key].append({"role": "assistant", "content": full_text})
+
+        # 3. Final metadata event
         confidence = round(min(sources[0]["score"] / 10.0, 1.0), 2) if sources else 0.0
         payload = json.dumps({
             "done":       True,
@@ -213,3 +261,4 @@ async def serve_static(filename: str):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8000)
+

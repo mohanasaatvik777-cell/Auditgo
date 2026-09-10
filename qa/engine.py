@@ -24,37 +24,36 @@ class GroundedQAEngine:
     # ────────────────────────────────────────────────────
     # Fast passage retrieval — used by streaming endpoint
     # ────────────────────────────────────────────────────
-    def get_passages(self, query: str, top_n: int = 5) -> List[Dict]:
+    def get_passages(self, query: str, top_n: int = 5, allow_fallback: bool = True) -> List[Dict]:
         """
         Return top-N BM25-ranked, verbatim-verified passages.
         Builds the index only once per engine instance.
+        If BM25 yields no matches for general/overview queries, falls back to key site passages if allow_fallback=True.
         """
         if not query or not query.strip():
             return []
         if not self._index_built:
             self._build_index()
         if not self.passages:
-            return []
+            return self._get_overview_passages(top_n) if allow_fallback else []
 
         tokenized_query = self._tokenize(query)
-        if not tokenized_query:
-            return []
-
-        corpus = [p["tokens"] for p in self.passages]
-        bm25   = BM25Okapi(corpus)
-        scores = bm25.get_scores(tokenized_query)
-
-        query_set = set(tokenized_query)
         ranked = []
-        for idx, passage in enumerate(self.passages):
-            bm_score    = float(scores[idx])
-            passage_set = set(passage["tokens"])
-            overlap     = len(query_set & passage_set) / len(query_set) if query_set else 0.0
-            combined    = bm_score + (overlap * 2.0)
-            if len(query_set & passage_set) >= 1 and combined >= self.score_threshold:
-                ranked.append((combined, passage))
+        if tokenized_query:
+            corpus = [p["tokens"] for p in self.passages]
+            bm25   = BM25Okapi(corpus)
+            scores = bm25.get_scores(tokenized_query)
 
-        ranked.sort(key=lambda x: x[0], reverse=True)
+            query_set = set(tokenized_query)
+            for idx, passage in enumerate(self.passages):
+                bm_score    = float(scores[idx])
+                passage_set = set(passage["tokens"])
+                overlap     = len(query_set & passage_set) / len(query_set) if query_set else 0.0
+                combined    = bm_score + (overlap * 2.0)
+                if len(query_set & passage_set) >= 1 and combined >= self.score_threshold:
+                    ranked.append((combined, passage))
+
+            ranked.sort(key=lambda x: x[0], reverse=True)
 
         results = []
         for score, passage in ranked[:top_n * 3]:  # over-sample then verify
@@ -70,7 +69,31 @@ class GroundedQAEngine:
             if len(results) >= top_n:
                 break
 
+        # Fallback to key overview passages if no direct keyword match found and fallback allowed
+        if not results and allow_fallback:
+            return self._get_overview_passages(top_n)
+
         return results
+
+    def _get_overview_passages(self, top_n: int = 5) -> List[Dict]:
+        """
+        Construct fallback overview passages from available crawled pages
+        when specific keyword queries match 0 passages.
+        """
+        overview = []
+        for p in self.passages[:top_n * 2]:
+            verified = self._verify_excerpt(p["text"], p["raw_html"])
+            if verified:
+                overview.append({
+                    "url":          p["url"],
+                    "excerpt":      verified,
+                    "score":        1.0,
+                    "start_offset": p.get("start_offset"),
+                    "end_offset":   p.get("end_offset"),
+                })
+            if len(overview) >= top_n:
+                break
+        return overview
 
     # ────────────────────────────────────────────────────
     # Full pipeline (used by /api/audit)
@@ -85,7 +108,7 @@ class GroundedQAEngine:
             return self._null_result(query or "", conversation_history)
 
         top_n   = 5 if deep else 2
-        sources = self.get_passages(query, top_n=top_n)
+        sources = self.get_passages(query, top_n=top_n, allow_fallback=False)
 
         if not sources:
             return self._null_result(query, conversation_history)

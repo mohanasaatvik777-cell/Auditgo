@@ -341,18 +341,11 @@
           <div class="tab-panel" id="r-qa">
             <div class="chat-container" id="chatContainer">
 
-              <!-- No-key banner -->
-              <div class="chat-key-banner" id="chatKeyBanner" style="display:none">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                No Groq API key set — answers will show raw excerpts only.
-                <button class="chat-key-banner-btn" onclick="switchView('settings')">Add Key →</button>
-              </div>
-
               <!-- Messages -->
               <div class="chat-messages" id="chatMessages">
                 <div class="chat-empty" id="chatEmpty">
                   <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                  <p>Run an audit with a question to start the conversation.</p>
+                  <p>Run an audit or ask a question about the website to start the conversation.</p>
                 </div>
               </div>
 
@@ -372,7 +365,11 @@
                 </div>
                 <div class="chat-meta" id="chatMeta">
                   <span id="chatSiteLabel"></span>
-                  <button class="chat-clear-btn" id="chatClearBtn">Clear conversation</button>
+                  <span id="sessionBadge" class="session-badge" style="margin-left: 8px; font-size: 11px; opacity: 0.8; font-family: monospace;"></span>
+                  <div style="margin-left: auto; display: flex; gap: 8px;">
+                    <button class="chat-clear-btn" id="newSessionBtn">New Session</button>
+                    <button class="chat-clear-btn" id="chatClearBtn">Clear conversation</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -412,41 +409,31 @@
       <div class="view" id="view-settings">
         <div class="view-header">
           <h2 class="view-title">Settings</h2>
-          <p class="view-subtitle">Configure your Auditgo preferences and API keys.</p>
+          <p class="view-subtitle">Configure your Auditgo preferences and multi-tenant environment.</p>
         </div>
 
         <div class="settings-grid">
 
-          <!-- Groq API Key -->
+          <!-- AI Engine & Multi-Tenancy Status -->
           <div class="settings-card">
             <div class="settings-card-header">
               <div class="settings-card-icon">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                  <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+                  <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/>
+                  <path d="M12 6v6l4 2"/>
                 </svg>
               </div>
               <div>
-                <div class="settings-card-title">Groq API Key</div>
-                <div class="settings-card-desc">Enable LLM-powered suggested fix refinements. Free tier available at console.groq.com.</div>
+                <div class="settings-card-title">AI Engine & Multi-Tenant Status</div>
+                <div class="settings-card-desc">Automatic AI Q&A and Chat isolation powered by backend environment configuration.</div>
               </div>
             </div>
-            <div class="settings-field-group">
-              <div class="settings-input-row">
-                <input type="password" id="groqKeyInput" class="settings-input" placeholder="gsk_...">
-                <button class="btn-reveal" id="toggleKeyVis" aria-label="Show key">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" id="eyeIcon">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                    <circle cx="12" cy="12" r="3"/>
-                  </svg>
-                </button>
+            <div class="settings-field-group" style="margin-top: 12px; font-size: 13px; line-height: 1.6;">
+              <div style="display: flex; align-items: center; gap: 8px; font-weight: 500;">
+                <span style="color: #10b981;">●</span> Backend Groq Key: Integrated via <code>.env</code>
               </div>
-              <div class="settings-actions">
-                <button class="btn-save" id="saveGroqKey">Save Key</button>
-                <button class="btn-clear" id="clearGroqKey">Remove</button>
-              </div>
-              <div class="settings-hint">
-                Key is stored in your browser's localStorage and never sent to any third party.
-                <a href="https://console.groq.com" target="_blank" rel="noopener" class="settings-link">Get a free key</a>
+              <div style="display: flex; align-items: center; gap: 8px; font-weight: 500; margin-top: 4px;">
+                <span style="color: #10b981;">●</span> Multi-Tenant Chat Session: <span id="settingsSessionId" style="font-family: monospace;">Active</span>
               </div>
             </div>
           </div>

@@ -5,7 +5,7 @@
 ───────────────────────────────────────────────────────────── */
 
 const STORAGE_KEYS = {
-  GROQ_KEY:        'auditgo_groq_key',
+  SESSION_ID:      'auditgo_session_id',
   HISTORY:         'auditgo_history',
   CRAWL_MAX_PAGES: 'auditgo_max_pages',
   CRAWL_MAX_DEPTH: 'auditgo_max_depth',
@@ -20,6 +20,36 @@ let chatCurrentUrl          = '';
 let chatIsBusy              = false;
 
 try { auditHistory = JSON.parse(localStorage.getItem(STORAGE_KEYS.HISTORY) || '[]'); } catch(_) {}
+
+function getOrInitSessionId() {
+  let sid = localStorage.getItem(STORAGE_KEYS.SESSION_ID);
+  if (!sid) {
+    sid = 'user_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+    localStorage.setItem(STORAGE_KEYS.SESSION_ID, sid);
+  }
+  return sid;
+}
+
+function updateSessionBadges() {
+  const sid = getOrInitSessionId();
+  const badge = $('sessionBadge');
+  if (badge) badge.textContent = `Session: ${sid.substring(0, 12)}…`;
+  const settingsSid = $('settingsSessionId');
+  if (settingsSid) settingsSid.textContent = sid;
+}
+
+function createNewSession() {
+  const newSid = 'user_' + Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+  localStorage.setItem(STORAGE_KEYS.SESSION_ID, newSid);
+  chatConversationHistory = [];
+  updateSessionBadges();
+  if (chatMessages) {
+    chatMessages.innerHTML = '';
+    chatMessages.appendChild(createEmptyState('Started new chat session. Ask a question below.'));
+  }
+  showToast('Created new isolated session', 'success');
+}
+
 
 /* ── DOM refs ─────────────────────────────────────────────── */
 const $ = id => document.getElementById(id);
@@ -109,7 +139,7 @@ async function runAudit(url, query) {
   url = normalizeUrl(url);
   if (!url) { showToast('Please enter a valid URL', 'error'); urlInput?.focus(); return; }
 
-  const groqKey = localStorage.getItem(STORAGE_KEYS.GROQ_KEY) || '';
+  const sessionId = getOrInitSessionId();
 
   overlayUrl.textContent = url;
   overlayError.style.display = 'none';
@@ -124,9 +154,12 @@ async function runAudit(url, query) {
   try {
     const res = await fetch('/api/audit', {
       method: 'POST',
-      headers: {'Content-Type':'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Session-ID': sessionId,
+      },
       signal:  abortController.signal,
-      body:    JSON.stringify({ url, query: query?.trim() || null, groq_api_key: groqKey || null }),
+      body:    JSON.stringify({ url, query: query?.trim() || null, session_id: sessionId }),
     });
 
     clearTimeout(t2); clearTimeout(t3); clearTimeout(t4);
@@ -338,30 +371,11 @@ clearHistoryBtn?.addEventListener('click', () => {
    SETTINGS
 ══════════════════════════════════════════════════════════ */
 function loadSettingsUI() {
-  if (groqKeyInput)  groqKeyInput.value   = localStorage.getItem(STORAGE_KEYS.GROQ_KEY)||'';
   if (maxPagesInput) maxPagesInput.value  = localStorage.getItem(STORAGE_KEYS.CRAWL_MAX_PAGES)||150;
   if (maxDepthInput) maxDepthInput.value  = localStorage.getItem(STORAGE_KEYS.CRAWL_MAX_DEPTH)||4;
+  updateSessionBadges();
 }
-saveGroqKey?.addEventListener('click', () => {
-  const val = groqKeyInput?.value.trim();
-  if (val) { localStorage.setItem(STORAGE_KEYS.GROQ_KEY, val); showToast('API key saved','success'); }
-  else     { localStorage.removeItem(STORAGE_KEYS.GROQ_KEY);   showToast('API key removed'); }
-  updateChatKeyBanner();
-});
-clearGroqKey?.addEventListener('click', () => {
-  localStorage.removeItem(STORAGE_KEYS.GROQ_KEY);
-  if (groqKeyInput) groqKeyInput.value = '';
-  updateChatKeyBanner();
-  showToast('API key removed');
-});
-toggleKeyVis?.addEventListener('click', () => {
-  if (!groqKeyInput) return;
-  const show = groqKeyInput.type === 'password';
-  groqKeyInput.type = show ? 'text' : 'password';
-  $('eyeIcon').innerHTML = show
-    ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>'
-    : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
-});
+
 saveCrawlSettings?.addEventListener('click', () => {
   const p = Math.min(Math.max(parseInt(maxPagesInput?.value)||150,5),500);
   const d = Math.min(Math.max(parseInt(maxDepthInput?.value)||4,1),10);
@@ -371,18 +385,14 @@ saveCrawlSettings?.addEventListener('click', () => {
 });
 
 /* ═══════════════════════════════════════════════════════════
-   CHAT MODULE  — SSE streaming, quick + deep tiers
+   CHAT MODULE  — SSE streaming, multi-tenant session support
 ══════════════════════════════════════════════════════════ */
-
-function updateChatKeyBanner() {
-  const key = localStorage.getItem(STORAGE_KEYS.GROQ_KEY)||'';
-  if (chatKeyBanner) chatKeyBanner.style.display = key ? 'none' : 'flex';
-}
 
 function seedChat(ans, url) {
   if (!chatMessages) return;
   chatCurrentUrl = url || '';
   chatConversationHistory = [];
+  updateSessionBadges();
 
   if (chatSiteLabel) {
     try { chatSiteLabel.textContent = chatCurrentUrl ? `Site: ${new URL(chatCurrentUrl).hostname}` : ''; }
@@ -390,10 +400,8 @@ function seedChat(ans, url) {
   }
 
   chatMessages.innerHTML = '';
-  const emptyEl = createEmptyState('Run an audit with a question to start the conversation.');
+  const emptyEl = createEmptyState('Run an audit or ask a question about the website to start the conversation.');
   chatMessages.appendChild(emptyEl);
-
-  updateChatKeyBanner();
 
   if (!ans || (!ans.query && !ans.answer && !ans.excerpt)) return;
   emptyEl.style.display = 'none';
@@ -432,7 +440,7 @@ async function sendChat(deep = false) {
   appendUserBubble(question);
 
   const { bubble, textNode, metaRow } = appendStreamingBubble(deep);
-  const groqKey = localStorage.getItem(STORAGE_KEYS.GROQ_KEY) || '';
+  const sessionId = getOrInitSessionId();
 
   let fullText  = '';
   let finalData = null;
@@ -440,12 +448,15 @@ async function sendChat(deep = false) {
   try {
     const res = await fetch('/api/chat/stream', {
       method:  'POST',
-      headers: {'Content-Type':'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Session-ID': sessionId,
+      },
       body:    JSON.stringify({
         url:                  chatCurrentUrl,
         question,
         conversation_history: chatConversationHistory,
-        groq_api_key:         groqKey || null,
+        session_id:           sessionId,
         deep,
       }),
     });
@@ -546,7 +557,6 @@ function appendStreamingBubble(deep) {
 function finalizeStreamingBubble(bubble, metaRow, ev, question, wasDeep) {
   const sources    = ev.sources    || [];
   const confidence = ev.confidence || 0;
-  const hasKey     = ev.has_key    || false;
 
   /* Confidence pill */
   const confClass = confidence >= 0.6 ? 'confidence-high'
@@ -580,7 +590,7 @@ function finalizeStreamingBubble(bubble, metaRow, ev, question, wasDeep) {
   }
 
   /* Deep analysis button — only show after quick answers */
-  if (!wasDeep && hasKey) {
+  if (!wasDeep) {
     const deepBtn = document.createElement('button');
     deepBtn.className   = 'btn-deep-analysis';
     deepBtn.innerHTML   = `
@@ -595,12 +605,6 @@ function finalizeStreamingBubble(bubble, metaRow, ev, question, wasDeep) {
       sendChat(true);   // re-ask same question in deep mode
     });
     metaRow.appendChild(deepBtn);
-  } else if (!wasDeep && !hasKey) {
-    /* No-key nudge */
-    const nudge = document.createElement('div');
-    nudge.className = 'chat-key-nudge';
-    nudge.innerHTML = `Add a <button class="nudge-link" onclick="switchView('settings')">Groq API key</button> for AI-synthesized answers and Deep Analysis.`;
-    metaRow.appendChild(nudge);
   }
 
   scrollChatBottom();
@@ -671,13 +675,26 @@ function scrollChatBottom() {
 /* Chat event listeners */
 chatSendBtn?.addEventListener('click', () => sendChat(false));
 chatInput?.addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(false); });
-chatClearBtn?.addEventListener('click', () => {
+$('newSessionBtn')?.addEventListener('click', createNewSession);
+chatClearBtn?.addEventListener('click', async () => {
   chatConversationHistory = [];
+  const sessionId = getOrInitSessionId();
+  if (chatCurrentUrl) {
+    try {
+      await fetch('/api/chat/clear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Session-ID': sessionId },
+        body: JSON.stringify({ url: chatCurrentUrl, session_id: sessionId }),
+      });
+    } catch(_) {}
+  }
   if (chatMessages) {
     chatMessages.innerHTML = '';
     chatMessages.appendChild(createEmptyState('Conversation cleared. Ask a new question below.'));
   }
+  showToast('Conversation cleared');
 });
+
 
 /* ═══════════════════════════════════════════════════════════
    HELPERS
@@ -711,7 +728,7 @@ function showToast(msg, type = '') {
       try { chatSiteLabel.textContent = `Site: ${new URL(chatCurrentUrl).hostname}`; } catch(_) {}
     }
   }
-  updateChatKeyBanner();
+  updateSessionBadges();
 })();
 
 /* ═══════════════════════════════════════════════════════════
